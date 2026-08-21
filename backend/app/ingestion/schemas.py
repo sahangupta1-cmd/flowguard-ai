@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
+
 from pydantic import Field
 
-from backend.app.api.schemas import StrictAPIModel
+from backend.app.api.schemas import (
+    CFOIntelligenceOverviewResponse,
+    StrictAPIModel,
+)
 
 
 class ImportDatasetResponse(StrictAPIModel):
@@ -63,3 +69,38 @@ class ImportManifestResponse(StrictAPIModel):
     )
 
     safety: ImportSafetyResponse
+
+
+class ImportAnalysisRequest(StrictAPIModel):
+    """
+    Operational analysis parameters for one isolated import.
+    """
+
+    as_of_date: date
+
+    opening_cash_balance: Decimal = Field(
+        ge=Decimal("0.00"),
+    )
+
+    horizon_days: int = Field(
+        default=90,
+        ge=1,
+        le=365,
+    )
+
+
+class ImportAnalysisResponse(StrictAPIModel):
+    """
+    CFO intelligence tied to a specific imported dataset
+    fingerprint for reproducibility.
+    """
+
+    import_id: str = Field(
+        pattern=r"^imp_[0-9a-f]{12}$",
+    )
+
+    fingerprint: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+
+    analysis: CFOIntelligenceOverviewResponse

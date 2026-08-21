@@ -14,7 +14,10 @@ from fastapi import (
 )
 
 from backend.app.ingestion.contracts import CONTRACTS
+from backend.app.intelligence.service import CFOIntelligenceService
 from backend.app.ingestion.schemas import (
+    ImportAnalysisRequest,
+    ImportAnalysisResponse,
     ImportManifestResponse,
 )
 from backend.app.ingestion.service import (
@@ -276,5 +279,80 @@ def get_operational_import(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=(
                 "Import metadata could not be read."
+            ),
+        ) from exc
+
+
+@router.post(
+    "/api/v1/imports/{import_id}/analyze",
+    response_model=ImportAnalysisResponse,
+    tags=["imports"],
+)
+def analyze_operational_import(
+    import_id: str,
+    request: ImportAnalysisRequest,
+) -> ImportAnalysisResponse:
+    """
+    Run FlowGuard CFO intelligence against one isolated import.
+
+    The bundled demo dataset is never replaced or overwritten.
+    """
+
+    # Reuse the existing safe import-ID validation and lookup.
+    manifest = get_operational_import(
+        import_id
+    )
+
+    normalized_path = (
+        DEFAULT_IMPORT_ROOT
+        / import_id
+        / "normalized"
+    )
+
+    if not normalized_path.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Imported operational dataset is unavailable "
+                "for analysis."
+            ),
+        )
+
+    try:
+        intelligence = CFOIntelligenceService(
+            raw_dir=normalized_path,
+            as_of_date=request.as_of_date,
+        )
+
+        overview = intelligence.build_overview(
+            opening_cash_balance=(
+                request.opening_cash_balance
+            ),
+            horizon_days=request.horizon_days,
+        )
+
+        return ImportAnalysisResponse(
+            import_id=import_id,
+            fingerprint=manifest.fingerprint,
+            analysis=overview,
+        )
+
+    except (
+        FileNotFoundError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Imported operational dataset could not "
+                "be analyzed."
+            ),
+        ) from exc
+
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "Operational intelligence analysis failed."
             ),
         ) from exc

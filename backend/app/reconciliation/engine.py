@@ -144,6 +144,31 @@ class ReconciliationEngine:
             path
         )
 
+    def _read_optional_csv(
+        self,
+        filename: str,
+        *,
+        columns: tuple[str, ...],
+    ) -> pd.DataFrame:
+        """
+        Read an optional operational event CSV.
+
+        If the file is absent, return an empty DataFrame with the
+        expected production columns so downstream reconciliation
+        logic can safely treat the event set as empty.
+
+        Core operational files must continue to use _read_csv()
+        and remain mandatory.
+        """
+        path = self.raw_dir / filename
+
+        if not path.exists():
+            return pd.DataFrame(
+                columns=list(columns)
+            )
+
+        return pd.read_csv(path)
+
     def _assert_no_benchmark_columns(
         self,
         dataset_name: str,
@@ -200,15 +225,29 @@ class ReconciliationEngine:
                     "bank_transactions.csv"
                 ),
 
-            "refunds":
-                self._read_csv(
-                    "refunds.csv"
-                ),
+            "refunds": self._read_optional_csv(
+            "refunds.csv",
+            columns=(
+                "refund_id",
+                "payment_id",
+                "invoice_id",
+                "amount",
+                "refund_date",
+                "refund_status",
+            ),
+        ),
 
-            "chargebacks":
-                self._read_csv(
-                    "chargebacks.csv"
-                ),
+            "chargebacks": self._read_optional_csv(
+            "chargebacks.csv",
+            columns=(
+                "chargeback_id",
+                "payment_id",
+                "amount",
+                "chargeback_date",
+                "status",
+                "reason",
+            ),
+        ),
         }
 
         for name, dataframe in data.items():
