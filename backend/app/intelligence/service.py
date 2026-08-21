@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 from backend.app.cashflow.engine import CashImpactEngine
@@ -10,6 +12,9 @@ from backend.app.reconciliation.engine import ReconciliationEngine
 
 
 HIGH_RISK_LATE_PROBABILITY_PCT = 70.0
+
+DEFAULT_RAW_DIR = Path("data/raw")
+DEFAULT_AS_OF_DATE = date(2026, 8, 1)
 
 
 def _money(value: Decimal) -> str:
@@ -38,6 +43,22 @@ class CFOIntelligenceService:
 
     Benchmark and ground-truth datasets are intentionally not used here.
     """
+
+    def __init__(
+        self,
+        *,
+        raw_dir: Path = DEFAULT_RAW_DIR,
+        as_of_date: date = DEFAULT_AS_OF_DATE,
+    ) -> None:
+        """
+        Configure the operational dataset for CFO intelligence.
+
+        Defaults preserve the bundled deterministic demo.
+        Imported datasets can provide an isolated normalized
+        directory and an explicit analysis date.
+        """
+        self.raw_dir = Path(raw_dir)
+        self.as_of_date = as_of_date
 
     def _priority_actions(
         self,
@@ -134,7 +155,9 @@ class CFOIntelligenceService:
         # Reconciliation
         # ----------------------------------------------------
 
-        reconciliation_engine = ReconciliationEngine()
+        reconciliation_engine = ReconciliationEngine(
+            raw_dir=self.raw_dir,
+        )
 
         reconciliation_batch = (
             reconciliation_engine.run(
@@ -150,7 +173,10 @@ class CFOIntelligenceService:
         # Payment-delay intelligence
         # ----------------------------------------------------
 
-        predictor = DelayPredictor()
+        predictor = DelayPredictor(
+            raw_dir=self.raw_dir,
+            as_of_date=self.as_of_date,
+        )
 
         predictions = (
             predictor.predict_open_invoices()
@@ -206,7 +232,10 @@ class CFOIntelligenceService:
         # Cashflow
         # ----------------------------------------------------
 
-        cashflow_engine = CashImpactEngine()
+        cashflow_engine = CashImpactEngine(
+            raw_dir=self.raw_dir,
+            as_of_date=self.as_of_date,
+        )
 
         cashflow = cashflow_engine.forecast(
             opening_cash_balance=opening_cash_balance,
@@ -218,7 +247,10 @@ class CFOIntelligenceService:
         # ----------------------------------------------------
 
         impact_analyzer = (
-            CashDelayImpactAnalyzer()
+            CashDelayImpactAnalyzer(
+                raw_dir=self.raw_dir,
+                as_of_date=self.as_of_date,
+            )
         )
 
         impact = impact_analyzer.analyze(
