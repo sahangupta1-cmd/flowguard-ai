@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from backend.app.api.routes import router
+from backend.app.ingestion.routes import router as ingestion_router
 
 
 app = FastAPI(
@@ -19,3 +20,4 @@ app = FastAPI(
 
 
 app.include_router(router)
+app.include_router(ingestion_router)
