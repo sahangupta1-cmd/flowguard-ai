@@ -10,14 +10,24 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.app.api.schemas import (
     DashboardSummaryResponse,
+    CashDelayImpactRequest,
+    CashDelayImpactResponse,
+    CashflowForecastRequest,
+    CashflowForecastResponse,
     HealthResponse,
     ReconciliationDetailResponse,
     ReconciliationListResponse,
     ReconciliationResultResponse,
     ReconciliationRunRequest,
     ReconciliationRunResponse,
+    PaymentDelayListResponse,
+    PaymentDelayResponse,
 )
 from backend.app.reconciliation.engine import ReconciliationEngine
+
+from backend.app.prediction.delay_predictor import DelayPredictor
+from backend.app.cashflow.engine import CashImpactEngine
+from backend.app.cashflow.impact_analyzer import CashDelayImpactAnalyzer
 
 
 logger = logging.getLogger(__name__)
@@ -300,3 +310,165 @@ def get_reconciliation(
             f"'{invoice_id}' was not found."
         ),
     )
+
+
+# ============================================================
+# Payment-delay predictions
+# ============================================================
+
+@router.get(
+    "/api/v1/payment-delays",
+    response_model=PaymentDelayListResponse,
+    tags=["prediction"],
+)
+def get_payment_delays() -> PaymentDelayListResponse:
+    """
+    Predict payment timing for currently open invoices.
+
+    Uses operational finance data only.
+    Benchmark / ground-truth datasets are never accessed.
+    """
+    try:
+        predictor = DelayPredictor()
+        predictions = predictor.predict_open_invoices()
+
+        api_predictions = [
+            PaymentDelayResponse(
+                **prediction.to_dict()
+            )
+            for prediction in predictions
+        ]
+
+        return PaymentDelayListResponse(
+            as_of_date=predictor.as_of_date.isoformat(),
+            count=len(api_predictions),
+            predictions=api_predictions,
+        )
+
+    except (
+        FileNotFoundError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
+        logger.exception(
+            "Payment-delay prediction failed."
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Payment-delay prediction failed. "
+                "Check the operational finance data."
+            ),
+        ) from exc
+
+
+# ============================================================
+# Cashflow forecast
+# ============================================================
+
+@router.post(
+    "/api/v1/cashflow/forecast",
+    response_model=CashflowForecastResponse,
+    tags=["cashflow"],
+)
+def get_cashflow_forecast(
+    request: CashflowForecastRequest,
+) -> CashflowForecastResponse:
+    """
+    Forecast operational cash position using predicted
+    receivable timing and scheduled expenses.
+    """
+    try:
+        engine = CashImpactEngine()
+
+        result = engine.forecast(
+            opening_cash_balance=request.opening_cash_balance,
+            horizon_days=request.horizon_days,
+        )
+
+        return CashflowForecastResponse(
+            as_of_date=result.as_of_date.isoformat(),
+            horizon_end=result.horizon_end.isoformat(),
+            opening_cash_balance=result.opening_cash_balance,
+            total_expected_inflows=result.total_expected_inflows,
+            total_scheduled_outflows=result.total_scheduled_outflows,
+            projected_ending_balance=result.projected_ending_balance,
+            shortfall_detected=result.shortfall_detected,
+            first_shortfall_date=(
+                result.first_shortfall_date.isoformat()
+                if result.first_shortfall_date
+                else None
+            ),
+            maximum_shortfall=result.maximum_shortfall,
+            minimum_projected_balance=(
+                result.minimum_projected_balance
+            ),
+            severity=result.severity,
+            recommended_action=result.recommended_action,
+        )
+
+    except (
+        FileNotFoundError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
+        logger.exception(
+            "Cashflow forecast failed."
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Cashflow forecast failed. "
+                "Check the operational finance data."
+            ),
+        ) from exc
+
+
+# ============================================================
+# Payment-delay liquidity impact
+# ============================================================
+
+@router.post(
+    "/api/v1/cashflow/delay-impact",
+    response_model=CashDelayImpactResponse,
+    tags=["cashflow"],
+)
+def get_cash_delay_impact(
+    request: CashDelayImpactRequest,
+) -> CashDelayImpactResponse:
+    """
+    Measure how predicted payment delays affect liquidity.
+
+    This endpoint compares contractual payment timing against
+    predicted payment timing using operational data only.
+    """
+    try:
+        analyzer = CashDelayImpactAnalyzer()
+
+        result = analyzer.analyze(
+            opening_cash_balance=request.opening_cash_balance,
+            horizon_days=request.horizon_days,
+        )
+
+        return CashDelayImpactResponse(
+            **result
+        )
+
+    except (
+        FileNotFoundError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
+        logger.exception(
+            "Cash-delay impact analysis failed."
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Cash-delay impact analysis failed. "
+                "Check the operational finance data."
+            ),
+        ) from exc

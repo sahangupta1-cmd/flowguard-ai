@@ -204,3 +204,130 @@ def test_reconciliation_run_without_persistence() -> None:
     )
 
     assert_no_benchmark_fields(payload)
+
+# ============================================================
+# Operational intelligence API tests
+# ============================================================
+
+def test_payment_delay_endpoint() -> None:
+    response = client.get(
+        "/api/v1/payment-delays"
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["as_of_date"] == "2026-08-01"
+    assert payload["count"] > 0
+    assert payload["count"] == len(
+        payload["predictions"]
+    )
+
+    prediction = payload["predictions"][0]
+
+    required_fields = {
+        "invoice_id",
+        "customer_id",
+        "invoice_amount",
+        "due_date",
+        "expected_delay_days",
+        "expected_payment_date",
+        "late_probability",
+        "confidence",
+        "history_count",
+        "prediction_basis",
+        "amount_at_risk",
+    }
+
+    assert required_fields.issubset(
+        prediction.keys()
+    )
+
+    assert 0.0 <= prediction["late_probability"] <= 100.0
+    assert 0.0 <= prediction["confidence"] <= 100.0
+
+
+def test_cashflow_forecast_endpoint() -> None:
+    response = client.post(
+        "/api/v1/cashflow/forecast",
+        json={
+            "opening_cash_balance": "500000.00",
+            "horizon_days": 90,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["as_of_date"] == "2026-08-01"
+    assert payload["horizon_end"] == "2026-10-30"
+
+    assert "total_expected_inflows" in payload
+    assert "total_scheduled_outflows" in payload
+    assert "projected_ending_balance" in payload
+    assert "shortfall_detected" in payload
+    assert "severity" in payload
+    assert "recommended_action" in payload
+
+    # Financial values must remain decimal strings.
+    assert isinstance(
+        payload["opening_cash_balance"],
+        str,
+    )
+
+    assert isinstance(
+        payload["projected_ending_balance"],
+        str,
+    )
+
+
+def test_cash_delay_impact_endpoint() -> None:
+    response = client.post(
+        "/api/v1/cashflow/delay-impact",
+        json={
+            "opening_cash_balance": "500000.00",
+            "horizon_days": 90,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["as_of_date"] == "2026-08-01"
+    assert payload["horizon_end"] == "2026-10-30"
+
+    impact = payload["delay_impact"]
+
+    assert (
+        float(
+            impact["maximum_temporary_cash_gap"]
+        )
+        >= 0.0
+    )
+
+    assert (
+        impact["days_with_reduced_liquidity"]
+        >= 0
+    )
+
+    assert impact["severity"] in {
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL",
+    }
+
+
+def test_cashflow_request_validation() -> None:
+    response = client.post(
+        "/api/v1/cashflow/forecast",
+        json={
+            "opening_cash_balance": "500000.00",
+            "horizon_days": 0,
+        },
+    )
+
+    assert response.status_code == 422

@@ -280,3 +280,192 @@ class DashboardSummaryResponse(StrictAPIModel):
 class APIErrorResponse(StrictAPIModel):
     error: str
     detail: str | None = None
+
+# ============================================================
+# Payment-delay prediction API
+# ============================================================
+
+class PaymentDelayResponse(StrictAPIModel):
+    invoice_id: str = Field(min_length=1)
+    customer_id: str = Field(min_length=1)
+
+    invoice_amount: Decimal
+    due_date: str
+
+    expected_delay_days: int = Field(ge=0)
+    expected_payment_date: str
+
+    late_probability: float = Field(
+        ge=0.0,
+        le=100.0,
+    )
+
+    confidence: float = Field(
+        ge=0.0,
+        le=100.0,
+    )
+
+    history_count: int = Field(ge=0)
+    prediction_basis: str
+
+    amount_at_risk: Decimal
+
+    @field_serializer(
+        "invoice_amount",
+        "amount_at_risk",
+    )
+    def serialize_money(
+        self,
+        value: Decimal,
+    ) -> str:
+        return format(value, ".2f")
+
+
+class PaymentDelayListResponse(StrictAPIModel):
+    as_of_date: str
+
+    count: int = Field(ge=0)
+
+    predictions: list[PaymentDelayResponse] = Field(
+        default_factory=list
+    )
+
+
+# ============================================================
+# Cashflow forecast API
+# ============================================================
+
+class CashflowForecastRequest(StrictAPIModel):
+    opening_cash_balance: Decimal = Field(
+        ge=Decimal("0.00"),
+        description="Opening cash available at the forecast start date.",
+    )
+
+    horizon_days: int = Field(
+        default=90,
+        ge=1,
+        le=365,
+        description="Forecast horizon in days.",
+    )
+
+
+class CashflowForecastResponse(StrictAPIModel):
+    as_of_date: str
+    horizon_end: str
+
+    opening_cash_balance: Decimal
+    total_expected_inflows: Decimal
+    total_scheduled_outflows: Decimal
+    projected_ending_balance: Decimal
+
+    shortfall_detected: bool
+    first_shortfall_date: str | None = None
+
+    maximum_shortfall: Decimal
+    minimum_projected_balance: Decimal
+
+    severity: str
+    recommended_action: str
+
+    @field_serializer(
+        "opening_cash_balance",
+        "total_expected_inflows",
+        "total_scheduled_outflows",
+        "projected_ending_balance",
+        "maximum_shortfall",
+        "minimum_projected_balance",
+    )
+    def serialize_money(
+        self,
+        value: Decimal,
+    ) -> str:
+        return format(value, ".2f")
+
+
+# ============================================================
+# Payment-delay liquidity-impact API
+# ============================================================
+
+class CashDelayImpactRequest(StrictAPIModel):
+    opening_cash_balance: Decimal = Field(
+        ge=Decimal("0.00"),
+        description="Opening cash available at the analysis date.",
+    )
+
+    horizon_days: int = Field(
+        default=90,
+        ge=1,
+        le=365,
+    )
+
+
+class CashPositionResponse(StrictAPIModel):
+    minimum_balance: Decimal
+    minimum_balance_date: str
+    first_shortfall_date: str | None = None
+    maximum_shortfall: Decimal
+    ending_balance: Decimal
+
+    @field_serializer(
+        "minimum_balance",
+        "maximum_shortfall",
+        "ending_balance",
+    )
+    def serialize_money(
+        self,
+        value: Decimal,
+    ) -> str:
+        return format(value, ".2f")
+
+
+class DelayImpactMetricsResponse(StrictAPIModel):
+    maximum_temporary_cash_gap: Decimal
+    maximum_gap_date: str | None = None
+
+    days_with_reduced_liquidity: int = Field(ge=0)
+
+    first_scheduled_expense_date: str | None = None
+    cash_delayed_by_first_expense: Decimal
+
+    minimum_balance_deterioration: Decimal
+    incremental_shortfall: Decimal
+
+    severity: str
+
+    @field_serializer(
+        "maximum_temporary_cash_gap",
+        "cash_delayed_by_first_expense",
+        "minimum_balance_deterioration",
+        "incremental_shortfall",
+    )
+    def serialize_money(
+        self,
+        value: Decimal,
+    ) -> str:
+        return format(value, ".2f")
+
+
+class CashDelayImpactResponse(StrictAPIModel):
+    as_of_date: str
+    horizon_end: str
+
+    opening_cash_balance: Decimal
+    total_delayed_receivables: Decimal
+
+    weighted_average_delay_days: float = Field(
+        ge=0.0
+    )
+
+    baseline: CashPositionResponse
+    predicted_delay: CashPositionResponse
+    delay_impact: DelayImpactMetricsResponse
+
+    @field_serializer(
+        "opening_cash_balance",
+        "total_delayed_receivables",
+    )
+    def serialize_money(
+        self,
+        value: Decimal,
+    ) -> str:
+        return format(value, ".2f")
