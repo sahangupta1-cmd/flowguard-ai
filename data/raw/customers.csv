@@ -1,0 +1,21 @@
+customer_id,customer_name,industry,payment_terms_days
+C001,Alpha Retail Pvt Ltd,IT Services,15
+C002,Nova Technologies Pvt Ltd,Consulting,15
+C003,Horizon Foods LLP,Logistics,15
+C004,BluePeak Logistics Pvt Ltd,IT Services,45
+C005,Vertex Consulting LLP,EdTech,15
+C006,GreenCart Commerce Pvt Ltd,Manufacturing,30
+C007,Orbit Systems Pvt Ltd,Retail,15
+C008,Cedar Healthcare Pvt Ltd,IT Services,15
+C009,Nimbus Learning Pvt Ltd,Logistics,45
+C010,UrbanNest Interiors LLP,Manufacturing,15
+C011,Silverline Manufacturing Pvt Ltd,EdTech,15
+C012,Aster Mobility Pvt Ltd,EdTech,30
+C013,BrightGrid Energy Pvt Ltd,Logistics,30
+C014,PixelCraft Media LLP,Manufacturing,30
+C015,PrimeLeaf Consumer Products Pvt Ltd,Retail,15
+C016,CloudArc Solutions Pvt Ltd,SaaS,30
+C017,MetroMart Retail LLP,Consulting,15
+C018,NorthStar Components Pvt Ltd,Logistics,30
+C019,SwiftRoute Services Pvt Ltd,IT Services,15
+C020,Zenith Business Solutions LLP,SaaS,15

@@ -1,0 +1,34 @@
+{
+  "accuracy_note": "No benchmark accuracy is calculated by the operational engine. Accuracy is measured separately by the isolated evaluation layer.",
+  "auto_closed_count": 77,
+  "auto_closure_rate_pct": 77.0,
+  "cases_processed": 100,
+  "complete_chain_count": 91,
+  "complete_chain_rate_pct": 91.0,
+  "exact_match_cases": 87,
+  "fuzzy_recovery_cases": 8,
+  "processing_seconds": 0.343557,
+  "requires_review_count": 23,
+  "requires_review_rate_pct": 23.0,
+  "root_cause_distribution": {
+    "AMOUNT_MISMATCH": 4,
+    "CHARGEBACK": 5,
+    "CLEAN": 43,
+    "DUPLICATE_PAYMENT": 5,
+    "FULL_REFUND": 3,
+    "GATEWAY_FEE_GST": 10,
+    "MISSING_BANK_ENTRY": 4,
+    "MISSING_PAYMENT": 5,
+    "PARTIAL_PAYMENT": 6,
+    "PARTIAL_REFUND": 5,
+    "SETTLEMENT_DELAY": 5,
+    "UNEXPLAINED": 5
+  },
+  "status_distribution": {
+    "EXPLAINED_EXCEPTION": 29,
+    "RECONCILED": 53,
+    "UNRESOLVED": 18
+  },
+  "throughput_cases_per_second": 291.07,
+  "unresolved_or_review_count": 18
+}

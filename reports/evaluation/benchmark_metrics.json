@@ -1,0 +1,114 @@
+{
+  "bank_linkage": {
+    "f1_pct": 100.0,
+    "false_negative": 0,
+    "false_positive": 0,
+    "precision_pct": 100.0,
+    "recall_pct": 100.0,
+    "true_positive": 96
+  },
+  "cases_evaluated": 100,
+  "end_to_end_case_accuracy_pct": 100.0,
+  "end_to_end_correct_cases": 100,
+  "failure_count": 0,
+  "fuzzy_recovery": {
+    "expected_fuzzy_cases": 8,
+    "f1_pct": 100.0,
+    "false_or_incorrect_fuzzy_cases": 0,
+    "precision_pct": 100.0,
+    "predicted_fuzzy_cases": 8,
+    "recall_pct": 100.0,
+    "successful_fuzzy_cases": 8
+  },
+  "methodology_note": "Operational predictions are produced without access to ground truth. FUZZY_REFERENCE is evaluated as a matching challenge rather than a financial root cause.",
+  "missing_prediction_ids": [],
+  "missing_predictions_count": 0,
+  "payment_linkage": {
+    "f1_pct": 100.0,
+    "false_negative": 0,
+    "false_positive": 0,
+    "precision_pct": 100.0,
+    "recall_pct": 100.0,
+    "true_positive": 100
+  },
+  "per_scenario": {
+    "AMOUNT_MISMATCH": {
+      "accuracy_pct": 100.0,
+      "cases": 4,
+      "end_to_end_correct": 4
+    },
+    "CHARGEBACK": {
+      "accuracy_pct": 100.0,
+      "cases": 5,
+      "end_to_end_correct": 5
+    },
+    "CLEAN": {
+      "accuracy_pct": 100.0,
+      "cases": 35,
+      "end_to_end_correct": 35
+    },
+    "DUPLICATE_PAYMENT": {
+      "accuracy_pct": 100.0,
+      "cases": 5,
+      "end_to_end_correct": 5
+    },
+    "FULL_REFUND": {
+      "accuracy_pct": 100.0,
+      "cases": 3,
+      "end_to_end_correct": 3
+    },
+    "FUZZY_REFERENCE": {
+      "accuracy_pct": 100.0,
+      "cases": 8,
+      "end_to_end_correct": 8
+    },
+    "GATEWAY_FEE_GST": {
+      "accuracy_pct": 100.0,
+      "cases": 10,
+      "end_to_end_correct": 10
+    },
+    "MISSING_BANK_ENTRY": {
+      "accuracy_pct": 100.0,
+      "cases": 4,
+      "end_to_end_correct": 4
+    },
+    "MISSING_PAYMENT": {
+      "accuracy_pct": 100.0,
+      "cases": 5,
+      "end_to_end_correct": 5
+    },
+    "PARTIAL_PAYMENT": {
+      "accuracy_pct": 100.0,
+      "cases": 6,
+      "end_to_end_correct": 6
+    },
+    "PARTIAL_REFUND": {
+      "accuracy_pct": 100.0,
+      "cases": 5,
+      "end_to_end_correct": 5
+    },
+    "SETTLEMENT_DELAY": {
+      "accuracy_pct": 100.0,
+      "cases": 5,
+      "end_to_end_correct": 5
+    },
+    "UNRESOLVED": {
+      "accuracy_pct": 100.0,
+      "cases": 5,
+      "end_to_end_correct": 5
+    }
+  },
+  "predictions_present": 100,
+  "root_cause_accuracy_pct": 100.0,
+  "settlement_linkage": {
+    "f1_pct": 100.0,
+    "false_negative": 0,
+    "false_positive": 0,
+    "precision_pct": 100.0,
+    "recall_pct": 100.0,
+    "true_positive": 100
+  },
+  "status_accuracy_pct": 100.0,
+  "unexpected_prediction_ids": [],
+  "unexpected_predictions_count": 0
+}
