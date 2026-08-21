@@ -469,3 +469,88 @@ class CashDelayImpactResponse(StrictAPIModel):
         value: Decimal,
     ) -> str:
         return format(value, ".2f")
+
+
+# ============================================================
+# CFO Intelligence Overview
+# ============================================================
+
+class CFOReconciliationOverview(StrictAPIModel):
+    cases_processed: int = Field(ge=0)
+    complete_chain_count: int = Field(ge=0)
+    complete_chain_rate_pct: float = Field(ge=0.0, le=100.0)
+    auto_closed_count: int = Field(ge=0)
+    auto_closure_rate_pct: float = Field(ge=0.0, le=100.0)
+    requires_review_count: int = Field(ge=0)
+    requires_review_rate_pct: float = Field(ge=0.0, le=100.0)
+    exact_match_cases: int = Field(ge=0)
+    fuzzy_recovery_cases: int = Field(ge=0)
+    unresolved_or_review_count: int = Field(ge=0)
+
+
+class CFOReceivablesOverview(StrictAPIModel):
+    open_invoices: int = Field(ge=0)
+    amount_at_risk: str
+    high_risk_threshold_pct: float = Field(ge=0.0, le=100.0)
+    high_risk_invoices: int = Field(ge=0)
+    high_risk_amount: str
+    average_late_probability_pct: float = Field(
+        ge=0.0,
+        le=100.0,
+    )
+    average_prediction_confidence_pct: float = Field(
+        ge=0.0,
+        le=100.0,
+    )
+
+
+class CFOCashflowOverview(StrictAPIModel):
+    opening_cash_balance: str
+    horizon_end: str
+    total_expected_inflows: str
+    total_scheduled_outflows: str
+    projected_ending_balance: str
+    shortfall_detected: bool
+    first_shortfall_date: str | None = None
+    maximum_shortfall: str
+    minimum_projected_balance: str
+    severity: str
+    recommended_action: str
+
+
+class CFOLiquidityRiskOverview(StrictAPIModel):
+    total_delayed_receivables: str
+    weighted_average_delay_days: float = Field(ge=0.0)
+    maximum_temporary_cash_gap: str
+    maximum_gap_date: str | None = None
+    days_with_reduced_liquidity: int = Field(ge=0)
+    cash_delayed_by_first_expense: str
+    incremental_shortfall: str
+    severity: str
+
+
+class CFOPriorityAction(StrictAPIModel):
+    code: str = Field(min_length=1)
+    severity: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    detail: str = Field(min_length=1)
+
+
+class CFOIntelligenceOverviewResponse(StrictAPIModel):
+    """
+    Reviewer-safe operational CFO intelligence response.
+
+    No benchmark labels, expected outcomes, scenarios, or
+    ground-truth fields are part of this API contract.
+    """
+
+    as_of_date: str
+
+    reconciliation: CFOReconciliationOverview
+    receivables: CFOReceivablesOverview
+    cashflow: CFOCashflowOverview
+    liquidity_risk: CFOLiquidityRiskOverview
+
+    priorities: list[CFOPriorityAction] = Field(
+        default_factory=list
+    )

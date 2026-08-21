@@ -331,3 +331,109 @@ def test_cashflow_request_validation() -> None:
     )
 
     assert response.status_code == 422
+
+
+# ============================================================
+# CFO Intelligence API
+# ============================================================
+
+def test_cfo_intelligence_overview_endpoint() -> None:
+    response = client.get(
+        "/api/v1/intelligence/overview",
+        params={
+            "opening_cash_balance": "500000.00",
+            "horizon_days": 90,
+        },
+    )
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["as_of_date"] == "2026-08-01"
+
+    assert "reconciliation" in payload
+    assert "receivables" in payload
+    assert "cashflow" in payload
+    assert "liquidity_risk" in payload
+    assert "priorities" in payload
+
+    assert (
+        payload["reconciliation"]["cases_processed"]
+        == 100
+    )
+
+    assert (
+        payload["reconciliation"]["requires_review_count"]
+        >= 0
+    )
+
+    assert payload["receivables"]["open_invoices"] > 0
+
+    assert (
+        payload["receivables"]["high_risk_invoices"]
+        <= payload["receivables"]["open_invoices"]
+    )
+
+    assert isinstance(
+        payload["cashflow"]["projected_ending_balance"],
+        str,
+    )
+
+    assert isinstance(
+        payload["liquidity_risk"][
+            "maximum_temporary_cash_gap"
+        ],
+        str,
+    )
+
+    assert isinstance(payload["priorities"], list)
+
+
+def test_cfo_intelligence_invalid_horizon() -> None:
+    response = client.get(
+        "/api/v1/intelligence/overview",
+        params={
+            "opening_cash_balance": "500000.00",
+            "horizon_days": 0,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_cfo_intelligence_rejects_negative_cash() -> None:
+    response = client.get(
+        "/api/v1/intelligence/overview",
+        params={
+            "opening_cash_balance": "-1.00",
+            "horizon_days": 90,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_cfo_intelligence_has_no_benchmark_fields() -> None:
+    response = client.get(
+        "/api/v1/intelligence/overview"
+    )
+
+    assert response.status_code == 200
+
+    payload_text = str(response.json()).lower()
+
+    forbidden = [
+        "ground_truth",
+        "benchmark_id",
+        "stress_id",
+        "case_id",
+        "true_status",
+        "true_root_cause",
+        "expected_status",
+        "expected_root_cause",
+        "should_auto_resolve",
+    ]
+
+    for key in forbidden:
+        assert key not in payload_text

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.app.api.schemas import (
     DashboardSummaryResponse,
+    CFOIntelligenceOverviewResponse,
     CashDelayImpactRequest,
     CashDelayImpactResponse,
     CashflowForecastRequest,
@@ -24,6 +25,7 @@ from backend.app.api.schemas import (
     PaymentDelayResponse,
 )
 from backend.app.reconciliation.engine import ReconciliationEngine
+from backend.app.intelligence.service import CFOIntelligenceService
 
 from backend.app.prediction.delay_predictor import DelayPredictor
 from backend.app.cashflow.engine import CashImpactEngine
@@ -469,6 +471,64 @@ def get_cash_delay_impact(
             status_code=500,
             detail=(
                 "Cash-delay impact analysis failed. "
+                "Check the operational finance data."
+            ),
+        ) from exc
+
+
+# ============================================================
+# CFO Intelligence Overview
+# ============================================================
+
+@router.get(
+    "/api/v1/intelligence/overview",
+    response_model=CFOIntelligenceOverviewResponse,
+    tags=["intelligence"],
+)
+def get_intelligence_overview(
+    opening_cash_balance: Decimal = Query(
+        default=Decimal("500000.00"),
+        ge=Decimal("0.00"),
+        description="Opening cash available at the as-of date.",
+    ),
+    horizon_days: int = Query(
+        default=90,
+        ge=1,
+        le=365,
+        description="Cashflow forecast horizon in days.",
+    ),
+) -> CFOIntelligenceOverviewResponse:
+    """
+    Return the consolidated operational CFO dashboard view.
+
+    Combines reconciliation, payment risk, cashflow and
+    liquidity intelligence without accessing benchmark data.
+    """
+    try:
+        service = CFOIntelligenceService()
+
+        overview = service.build_overview(
+            opening_cash_balance=opening_cash_balance,
+            horizon_days=horizon_days,
+        )
+
+        return CFOIntelligenceOverviewResponse(
+            **overview
+        )
+
+    except (
+        FileNotFoundError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
+        logger.exception(
+            "CFO intelligence overview failed."
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "CFO intelligence overview failed. "
                 "Check the operational finance data."
             ),
         ) from exc
