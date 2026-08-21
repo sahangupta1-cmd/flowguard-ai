@@ -160,3 +160,141 @@ def test_perfect_evaluation(
         ]
         == 100.0
     )
+def test_wrong_match_method_breaks_end_to_end_accuracy(
+    tmp_path,
+):
+    truth = pd.DataFrame(
+        [
+            {
+                "invoice_id": "INV001",
+                "scenario": "CLEAN",
+                "true_status": "RECONCILED",
+                "true_root_cause": "CLEAN",
+                "expected_payment_ids": "PAY001",
+                "expected_settlement_ids": "SET001",
+                "expected_bank_txn_ids": "BNK001",
+                "expected_match_method": "EXACT_ID",
+                "should_auto_resolve": True,
+            }
+        ]
+    )
+
+    predictions = pd.DataFrame(
+        [
+            {
+                "invoice_id": "INV001",
+                "payment_ids": "PAY001",
+                "settlement_ids": "SET001",
+                "bank_transaction_ids": "BNK001",
+                "status": "RECONCILED",
+                "root_cause": "CLEAN",
+                "match_method": "FUZZY",
+                "requires_review": False,
+            }
+        ]
+    )
+
+    truth_path = tmp_path / "truth.csv"
+    result_path = tmp_path / "results.csv"
+
+    truth.to_csv(
+        truth_path,
+        index=False,
+    )
+
+    predictions.to_csv(
+        result_path,
+        index=False,
+    )
+
+    evaluator = BenchmarkEvaluator(
+        truth_path=truth_path,
+        results_path=result_path,
+        report_dir=tmp_path / "reports",
+    )
+
+    report = evaluator.evaluate(
+        write_reports=False
+    )
+
+    assert (
+        report[
+            "end_to_end_case_accuracy_pct"
+        ]
+        == 0.0
+    )
+
+def test_unsafe_auto_resolution_is_detected(
+    tmp_path,
+):
+    truth = pd.DataFrame(
+        [
+            {
+                "invoice_id": "INV001",
+                "scenario": "DUPLICATE_PAYMENT",
+                "true_status": "EXPLAINED_EXCEPTION",
+                "true_root_cause": "DUPLICATE_PAYMENT",
+                "expected_payment_ids": "PAY001|PAY002",
+                "expected_settlement_ids": "SET001|SET002",
+                "expected_bank_txn_ids": "BNK001|BNK002",
+                "expected_match_method": "EXACT_ID",
+                "should_auto_resolve": False,
+            }
+        ]
+    )
+
+    predictions = pd.DataFrame(
+        [
+            {
+                "invoice_id": "INV001",
+                "payment_ids": "PAY001|PAY002",
+                "settlement_ids": "SET001|SET002",
+                "bank_transaction_ids": "BNK001|BNK002",
+                "status": "EXPLAINED_EXCEPTION",
+                "root_cause": "DUPLICATE_PAYMENT",
+                "match_method": "EXACT_ID",
+                "requires_review": False,
+            }
+        ]
+    )
+
+    truth_path = tmp_path / "truth.csv"
+    result_path = tmp_path / "results.csv"
+
+    truth.to_csv(
+        truth_path,
+        index=False,
+    )
+
+    predictions.to_csv(
+        result_path,
+        index=False,
+    )
+
+    evaluator = BenchmarkEvaluator(
+        truth_path=truth_path,
+        results_path=result_path,
+        report_dir=tmp_path / "reports",
+    )
+
+    report = evaluator.evaluate(
+        write_reports=False
+    )
+
+    safety = report[
+        "auto_resolution_safety"
+    ]
+
+    assert (
+        safety[
+            "unsafe_auto_resolutions"
+        ]
+        == 1
+    )
+
+    assert (
+        report[
+            "end_to_end_case_accuracy_pct"
+        ]
+        == 0.0
+    )

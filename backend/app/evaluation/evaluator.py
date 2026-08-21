@@ -84,6 +84,45 @@ def normalize_id(
 
     return str(value).strip().upper()
 
+def parse_bool(
+    value: Any,
+) -> bool:
+    """
+    Convert CSV-style boolean values safely.
+
+    Accepted true values:
+        True, TRUE, 1, YES
+
+    Accepted false values:
+        False, FALSE, 0, NO
+
+    Invalid values raise an error instead of being
+    silently interpreted.
+    """
+
+    if isinstance(value, bool):
+        return value
+
+    text = normalize_id(value)
+
+    if text in {
+        "TRUE",
+        "1",
+        "YES",
+    }:
+        return True
+
+    if text in {
+        "FALSE",
+        "0",
+        "NO",
+    }:
+        return False
+
+    raise ValueError(
+        f"Invalid boolean value: {value!r}"
+    )
+
 
 def parse_id_set(
     value: Any,
@@ -459,6 +498,12 @@ class BenchmarkEvaluator:
         expected_fuzzy_count = 0
         predicted_fuzzy_count = 0
         successful_fuzzy_count = 0
+        auto_resolution_cases_evaluated = 0
+        expected_auto_resolve_count = 0
+        predicted_auto_resolve_count = 0
+        auto_resolution_correct_count = 0
+        unsafe_auto_resolve_count = 0
+        missed_auto_resolve_count = 0
 
         scenario_stats = defaultdict(
             lambda: {
@@ -492,7 +537,43 @@ class BenchmarkEvaluator:
                     ]
                 )
             )
+                        # =================================================
+            # EXPECTED MATCH METHOD
+            # =================================================
 
+            if "expected_match_method" in truth.columns:
+                expected_method = normalize_id(
+                    truth_row[
+                        "expected_match_method"
+                    ]
+                )
+
+            else:
+                # Backward compatibility with frozen V1.
+                expected_method = (
+                    "FUZZY"
+                    if scenario == "FUZZY_REFERENCE"
+                    else ""
+                )
+
+            expected_fuzzy = (
+                expected_method == "FUZZY"
+            )
+            if "should_auto_resolve" in truth.columns:
+                expected_auto_resolve = parse_bool(
+                    truth_row[
+                        "should_auto_resolve"
+                    ]
+                )
+
+                auto_resolution_cases_evaluated += 1
+
+                expected_auto_resolve_count += int(
+                    expected_auto_resolve
+                )
+
+            else:
+                expected_auto_resolve = None
             expected_payments = parse_id_set(
                 truth_row[
                     "expected_payment_ids"
@@ -602,6 +683,55 @@ class BenchmarkEvaluator:
             predicted_method = normalize_id(
                 prediction["match_method"]
             )
+            method_correct = (
+                True
+                if not expected_method
+                else predicted_method == expected_method
+            )
+            predicted_requires_review = parse_bool(
+                prediction[
+                    "requires_review"
+                ]
+            )
+
+            predicted_auto_resolve = (
+                not predicted_requires_review
+                and predicted_status
+                in {
+                    "RECONCILED",
+                    "EXPLAINED_EXCEPTION",
+                }
+            )
+
+            if expected_auto_resolve is not None:
+
+                predicted_auto_resolve_count += int(
+                    predicted_auto_resolve
+                )
+
+                auto_resolution_correct = (
+                    predicted_auto_resolve
+                    == expected_auto_resolve
+                )
+
+                auto_resolution_correct_count += int(
+                    auto_resolution_correct
+                )
+
+                if (
+                    predicted_auto_resolve
+                    and not expected_auto_resolve
+                ):
+                    unsafe_auto_resolve_count += 1
+
+                if (
+                    expected_auto_resolve
+                    and not predicted_auto_resolve
+                ):
+                    missed_auto_resolve_count += 1
+
+            else:
+                auto_resolution_correct = True
 
             predicted_payments = parse_id_set(
                 prediction["payment_ids"]
@@ -661,6 +791,8 @@ class BenchmarkEvaluator:
                     payment_correct,
                     settlement_correct,
                     bank_correct,
+                    method_correct,
+                    auto_resolution_correct,
                 ]
             )
 
@@ -682,14 +814,16 @@ class BenchmarkEvaluator:
                     scenario
                 ]["correct"] += 1
 
-            expected_fuzzy = (
-                scenario
-                == "FUZZY_REFERENCE"
-            )
+
 
             predicted_fuzzy = (
-                predicted_method
-                == "FUZZY"
+                predicted_method == "FUZZY"
+            )
+
+            method_correct = (
+                True
+                if not expected_method
+                else predicted_method == expected_method
             )
 
             if expected_fuzzy:
@@ -708,7 +842,6 @@ class BenchmarkEvaluator:
 
             if fuzzy_success:
                 successful_fuzzy_count += 1
-
             case_rows.append(
                 {
                     "invoice_id":
@@ -920,6 +1053,36 @@ class BenchmarkEvaluator:
                         fuzzy_f1
                         * 100,
                         2,
+                    ),
+            },
+
+            # =================================================
+            # AUTO-RESOLUTION SAFETY
+            # =================================================
+
+            "auto_resolution_safety": {
+                "cases_evaluated":
+                    auto_resolution_cases_evaluated,
+
+                "expected_auto_resolve":
+                    expected_auto_resolve_count,
+
+                "predicted_auto_resolve":
+                    predicted_auto_resolve_count,
+
+                "correct_policy_decisions":
+                    auto_resolution_correct_count,
+
+                "unsafe_auto_resolutions":
+                    unsafe_auto_resolve_count,
+
+                "missed_safe_automations":
+                    missed_auto_resolve_count,
+
+                "policy_accuracy_pct":
+                    percentage(
+                        auto_resolution_correct_count,
+                        auto_resolution_cases_evaluated,
                     ),
             },
 

@@ -27,3 +27,6 @@ htmlcov/
 # Temporary files
 *.tmp
 *.log
+# Generated stress benchmark artifacts
+data/stress/
+reports/stress/
