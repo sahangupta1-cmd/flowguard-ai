@@ -1,0 +1,40 @@
+{
+  "methodology": {
+    "benchmark_labels_used": false,
+    "future_outcomes_used_only_for_evaluation": true,
+    "ground_truth_file_used": false,
+    "prediction_cutoff": "2026-08-01"
+  },
+  "metrics": {
+    "as_of_date": "2026-08-01",
+    "average_prediction_confidence": 51.88,
+    "baseline_comparison": {
+      "baseline_mae_days": 8.9,
+      "flowguard_mae_days": 4.76,
+      "historical_global_median_delay_days": 2,
+      "mae_improvement_pct": 46.52
+    },
+    "delay_prediction": {
+      "mae_days": 4.76,
+      "median_absolute_error_days": 5.0,
+      "rmse_days": 6.63,
+      "within_3_days_pct": 47.62,
+      "within_7_days_pct": 71.43
+    },
+    "future_completed_cases_evaluated": 21,
+    "late_payment_classification": {
+      "accuracy_pct": 76.19,
+      "f1_pct": 85.71,
+      "false_negative": 2,
+      "false_positive": 3,
+      "precision_pct": 83.33,
+      "recall_pct": 88.24,
+      "threshold_pct": 50.0,
+      "true_negative": 1,
+      "true_positive": 15
+    },
+    "observation_end_date": "2026-09-02",
+    "open_cases_without_observed_completion": 23,
+    "predictions_generated": 44
+  }
+}
