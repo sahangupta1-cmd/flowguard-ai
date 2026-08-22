@@ -32,6 +32,7 @@ import {
 } from 'recharts'
 
 import './App.css'
+import UploadDataModal from './components/UploadDataModal'
 import {
   getCFOOverview,
   type CFOOverview,
@@ -209,6 +210,13 @@ function App() {
     useState<Date | null>(null)
 
 
+  const [uploadModalOpen, setUploadModalOpen] =
+    useState(false)
+
+  const [datasetLabel, setDatasetLabel] =
+    useState('Demo dataset')
+
+
   async function loadOverview() {
     setLoading(true)
     setError(null)
@@ -218,6 +226,7 @@ function App() {
         await getCFOOverview()
 
       setOverview(result)
+      setDatasetLabel('Demo dataset')
       setLastUpdated(new Date())
     } catch (caught) {
       setError(
@@ -440,7 +449,7 @@ function App() {
           <div className="topbar-actions">
             <div className="dataset-pill">
               <span className="live-dot" />
-              Demo dataset
+              {datasetLabel}
             </div>
 
             <button
@@ -464,7 +473,7 @@ function App() {
             <button
               className="primary-button"
               onClick={() =>
-                scrollToSection('upload')
+                setUploadModalOpen(true)
               }
             >
               <UploadCloud size={17} />
@@ -953,7 +962,10 @@ function App() {
           </div>
 
 
-          <button className="primary-button upload-action">
+          <button className="primary-button upload-action"
+            onClick={() =>
+              setUploadModalOpen(true)
+            }>
             <UploadCloud size={18} />
             Upload company data
           </button>
@@ -973,6 +985,24 @@ function App() {
           </span>
         </footer>
       </main>
+
+    <UploadDataModal
+      open={uploadModalOpen}
+      onClose={() =>
+        setUploadModalOpen(false)
+      }
+      onAnalysis={(analysis) => {
+        setOverview(analysis)
+        setDatasetLabel('Uploaded dataset')
+        setLastUpdated(new Date())
+        setError(null)
+
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth',
+        })
+      }}
+    />
     </div>
   )
 }

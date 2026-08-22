@@ -70,3 +70,138 @@ export async function getCFOOverview(): Promise<CFOOverview> {
 
   return response.json()
 }
+
+export type ImportDatasetResponse = {
+  dataset_type: string
+  normalized_filename: string
+  row_count: number
+  alias_mappings: Record<string, string>
+  extra_columns: string[]
+  sha256: string
+}
+
+export type ImportSafetyResponse = {
+  demo_dataset_modified: boolean
+  benchmark_fields_allowed: boolean
+  invalid_money_coerced_to_zero: boolean
+}
+
+export type ImportManifestResponse = {
+  import_id: string
+  created_at_utc: string
+  fingerprint: string
+  total_rows: number
+  datasets: ImportDatasetResponse[]
+  safety: ImportSafetyResponse
+}
+
+export type OperationalUploadFiles = {
+  customers: File
+  invoices: File
+  payments: File
+  settlements: File
+  bank_transactions: File
+  expenses: File
+  refunds?: File | null
+  chargebacks?: File | null
+}
+
+export type ImportAnalysisRequest = {
+  as_of_date: string
+  opening_cash_balance: string
+  horizon_days: number
+}
+
+export type ImportAnalysisResponse = {
+  import_id: string
+  fingerprint: string
+  analysis: CFOOverview
+}
+
+async function apiErrorMessage(
+  response: Response,
+): Promise<string> {
+  try {
+    const payload = await response.json()
+
+    if (
+      payload &&
+      typeof payload.detail === 'string'
+    ) {
+      return payload.detail
+    }
+  } catch {
+    // Fall back to the HTTP status below.
+  }
+
+  return `FlowGuard API error: ${response.status}`
+}
+
+export async function uploadOperationalData(
+  files: OperationalUploadFiles,
+): Promise<ImportManifestResponse> {
+  const formData = new FormData()
+
+  formData.append('customers', files.customers)
+  formData.append('invoices', files.invoices)
+  formData.append('payments', files.payments)
+  formData.append('settlements', files.settlements)
+  formData.append(
+    'bank_transactions',
+    files.bank_transactions,
+  )
+  formData.append('expenses', files.expenses)
+
+  if (files.refunds) {
+    formData.append('refunds', files.refunds)
+  }
+
+  if (files.chargebacks) {
+    formData.append(
+      'chargebacks',
+      files.chargebacks,
+    )
+  }
+
+  const response = await fetch(
+    '/api/v1/imports',
+    {
+      method: 'POST',
+      body: formData,
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      await apiErrorMessage(response),
+    )
+  }
+
+  return response.json()
+}
+
+export async function analyzeImport(
+  importId: string,
+  request: ImportAnalysisRequest,
+): Promise<ImportAnalysisResponse> {
+  const response = await fetch(
+    `/api/v1/imports/${encodeURIComponent(
+      importId,
+    )}/analyze`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      await apiErrorMessage(response),
+    )
+  }
+
+  return response.json()
+}
