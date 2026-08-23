@@ -1,4 +1,5 @@
 from __future__ import annotations
+from backend.app.ai.routes import router as ai_router
 
 from fastapi import FastAPI
 
@@ -20,4 +21,5 @@ app = FastAPI(
 
 
 app.include_router(router)
+app.include_router(ai_router)
 app.include_router(ingestion_router)

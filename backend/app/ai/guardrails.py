@@ -516,10 +516,115 @@ def _money_claim_supported(
     )
 
 
+def _claim_value_for_text_match(
+    claim: NumericClaim,
+) -> Decimal | None:
+    """
+    Convert one extracted numeric claim to its canonical numeric value.
+
+    Used only when checking numbers that already appear inside selected,
+    trusted text evidence.
+    """
+    value = claim.numeric_value
+
+    if value is None:
+        return None
+
+    if claim.kind != "money":
+        return value
+
+    suffix = (
+        claim.suffix or ""
+    ).lower()
+
+    if suffix in {
+        "l",
+        "lakh",
+        "lakhs",
+    }:
+        return value * Decimal("100000")
+
+    if suffix in {
+        "cr",
+        "crore",
+        "crores",
+    }:
+        return value * Decimal("10000000")
+
+    return value
+
+
+def _claim_supported_by_text_evidence(
+    claim: NumericClaim,
+    evidence: TrustedEvidence,
+) -> bool:
+    """
+    Validate a generated number against selected trusted text evidence.
+
+    This does NOT trust arbitrary model output. The number must already
+    occur in an evidence item selected by FlowGuard's deterministic
+    evidence-routing layer.
+    """
+    if evidence.unit != "text":
+        return False
+
+    evidence_claims = extract_numeric_claims(
+        str(evidence.value)
+    )
+
+    if claim.kind == "date":
+        return any(
+            item.kind == "date"
+            and item.raw == claim.raw
+            for item in evidence_claims
+        )
+
+    claim_value = _claim_value_for_text_match(
+        claim
+    )
+
+    if claim_value is None:
+        return False
+
+    for item in evidence_claims:
+        item_value = _claim_value_for_text_match(
+            item
+        )
+
+        if item_value is None:
+            continue
+
+        if claim.kind == "percent":
+            if (
+                item.kind == "percent"
+                and item_value == claim_value
+            ):
+                return True
+
+            continue
+
+        if (
+            item.kind not in {
+                "date",
+                "percent",
+            }
+            and item_value == claim_value
+        ):
+            return True
+
+    return False
+
+
 def _claim_supported_by_evidence(
     claim: NumericClaim,
     evidence: TrustedEvidence,
 ) -> bool:
+    if evidence.unit == "text":
+        return _claim_supported_by_text_evidence(
+            claim,
+            evidence,
+        )
+
     if claim.kind == "date":
         return (
             evidence.unit == "date"
@@ -553,7 +658,6 @@ def _claim_supported_by_evidence(
         claim.numeric_value
         == evidence_value
     )
-
 
 def find_unsupported_numeric_claims(
     *,

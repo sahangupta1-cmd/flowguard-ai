@@ -213,7 +213,7 @@ class LLMAnswerDraft(StrictAIModel):
 
     evidence_ids: list[str] = Field(
         default_factory=list,
-        max_length=10,
+        max_length=18,
     )
 
     recommended_actions: list[AIRecommendationDraft] = Field(
@@ -265,7 +265,7 @@ class AskFlowGuardResponse(StrictAIModel):
 
     evidence: list[TrustedEvidence] = Field(
         default_factory=list,
-        max_length=10,
+        max_length=18,
     )
 
     recommended_actions: list[AIRecommendationDraft] = Field(
