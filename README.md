@@ -26,7 +26,7 @@ It combines:
 
 The key design principle is simple:
 
-> **The finance engine determines what is true.  
+> **The finance engine determines what is true.
 > The AI explains what that truth means.**
 
 FlowGuard does not allow an LLM to independently calculate or invent financial facts. Financial evidence is generated first using deterministic finance logic and prediction services, then supplied to the AI for explanation and decision support.
