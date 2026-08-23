@@ -33,9 +33,14 @@ import {
 
 import './App.css'
 import UploadDataModal from './components/UploadDataModal'
+import AskFlowGuardPanel from './components/AskFlowGuardPanel'
 import {
   getCFOOverview,
+  getPaymentDelays,
+  getCustomerRiskDrilldown,
   type CFOOverview,
+  type PaymentDelayPrediction,
+  type CustomerRiskResponse,
 } from './lib/api'
 
 
@@ -213,9 +218,44 @@ function App() {
   const [uploadModalOpen, setUploadModalOpen] =
     useState(false)
 
+  const [askFlowGuardOpen, setAskFlowGuardOpen] =
+    useState(false)
+
+  const [askFlowGuardPrompt, setAskFlowGuardPrompt] =
+    useState('')
+
+  const [currentImportId, setCurrentImportId] =
+    useState<string | null>(null)
+
   const [datasetLabel, setDatasetLabel] =
     useState('Demo dataset')
 
+  const [invoicePredictions, setInvoicePredictions] =
+    useState<PaymentDelayPrediction[]>([])
+
+  const [invoiceLoading, setInvoiceLoading] =
+    useState(false)
+
+  const [invoiceError, setInvoiceError] =
+    useState<string | null>(null)
+
+  const [customerRisk, setCustomerRisk] =
+    useState<CustomerRiskResponse | null>(null)
+
+  const [customerRiskLoading, setCustomerRiskLoading] =
+    useState(false)
+
+  const [customerRiskError, setCustomerRiskError] =
+    useState<string | null>(null)
+
+  const [customerRiskLimit, setCustomerRiskLimit] =
+    useState<5 | 10 | 15>(5)
+
+
+  function openAskFlowGuard(question = '') {
+    setAskFlowGuardPrompt(question)
+    setAskFlowGuardOpen(true)
+  }
 
   async function loadOverview() {
     setLoading(true)
@@ -227,6 +267,7 @@ function App() {
 
       setOverview(result)
       setDatasetLabel('Demo dataset')
+      setCurrentImportId(null)
       setLastUpdated(new Date())
     } catch (caught) {
       setError(
@@ -243,6 +284,137 @@ function App() {
   useEffect(() => {
     void loadOverview()
   }, [])
+
+  useEffect(() => {
+    if (!overview) {
+      setInvoicePredictions([])
+      return
+    }
+
+    const asOfDate = overview.as_of_date
+    let cancelled = false
+
+    async function loadInvoicePredictions() {
+      setInvoiceLoading(true)
+      setInvoiceError(null)
+
+      try {
+        const result = await getPaymentDelays({
+          importId: currentImportId,
+          asOfDate,
+        })
+
+        if (!cancelled) {
+          setInvoicePredictions(
+            result.predictions,
+          )
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setInvoicePredictions([])
+
+          setInvoiceError(
+            caught instanceof Error
+              ? caught.message
+              : 'Unable to load invoice risk data.',
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setInvoiceLoading(false)
+        }
+      }
+    }
+
+    void loadInvoicePredictions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    currentImportId,
+    overview?.as_of_date,
+  ])
+
+
+  useEffect(() => {
+    if (!overview) {
+      setCustomerRisk(null)
+      return
+    }
+
+    const asOfDate = overview.as_of_date
+    const openingCashBalance =
+      overview.cashflow.opening_cash_balance
+
+    let cancelled = false
+
+    async function loadCustomerRisk() {
+      setCustomerRiskLoading(true)
+      setCustomerRiskError(null)
+
+      try {
+        const result =
+          await getCustomerRiskDrilldown({
+            importId: currentImportId,
+            asOfDate,
+            openingCashBalance,
+            horizonDays: 90,
+            limit: customerRiskLimit,
+          })
+
+        if (!cancelled) {
+          setCustomerRisk(result)
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setCustomerRisk(null)
+          setCustomerRiskError(
+            caught instanceof Error
+              ? caught.message
+              : 'Unable to load customer risk intelligence.',
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setCustomerRiskLoading(false)
+        }
+      }
+    }
+
+    void loadCustomerRisk()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    currentImportId,
+    customerRiskLimit,
+    overview?.as_of_date,
+    overview?.cashflow.opening_cash_balance,
+  ])
+
+
+  const highRiskInvoices = useMemo(() => {
+    const threshold =
+      overview?.receivables.high_risk_threshold_pct ?? 70
+
+    return invoicePredictions
+      .filter(
+        (invoice) =>
+          invoice.late_probability >= threshold,
+      )
+      .sort(
+        (a, b) =>
+          b.late_probability - a.late_probability ||
+          Number(b.outstanding_amount) -
+            Number(a.outstanding_amount),
+      )
+      .slice(0, 10)
+  }, [
+    invoicePredictions,
+    overview?.receivables.high_risk_threshold_pct,
+  ])
 
 
   const cashflowData = useMemo(
@@ -413,10 +585,13 @@ function App() {
         </nav>
 
         <div className="sidebar-bottom">
-          <button className="copilot-button">
+          <button
+            className="copilot-button"
+            onClick={() => setAskFlowGuardOpen(true)}
+          >
             <Sparkles size={17} />
             Ask FlowGuard
-            <span>Soon</span>
+            <span>AI</span>
           </button>
 
           <div className="safe-mode">
@@ -897,6 +1072,410 @@ function App() {
             </div>
 
 
+            <div className="invoice-risk-block">
+              <div className="invoice-risk-header">
+                <div>
+                  <span className="invoice-risk-eyebrow">
+                    Invoice drill-down
+                  </span>
+
+                  <h4>High-risk invoices</h4>
+
+                  <p>
+                    Highest predicted late-payment risks
+                    from {datasetLabel.toLowerCase()}.
+                  </p>
+                </div>
+
+                <div className="invoice-risk-total">
+                  <strong>
+                    {receivables.high_risk_invoices}
+                  </strong>
+                  <span>high risk</span>
+                </div>
+              </div>
+
+              {invoiceLoading ? (
+                <div className="invoice-table-state">
+                  <RefreshCw
+                    className="spin"
+                    size={17}
+                  />
+                  Loading invoice intelligence...
+                </div>
+              ) : invoiceError ? (
+                <div className="invoice-table-state error">
+                  <AlertTriangle size={17} />
+                  {invoiceError}
+                </div>
+              ) : highRiskInvoices.length === 0 ? (
+                <div className="invoice-table-state">
+                  <CheckCircle2 size={17} />
+                  No high-risk open invoices found.
+                </div>
+              ) : (
+                <>
+                  <div className="invoice-table-scroll">
+                    <table className="invoice-risk-table">
+                      <thead>
+                        <tr>
+                          <th>Invoice</th>
+                          <th>Customer</th>
+                          <th>Outstanding</th>
+                          <th>Due date</th>
+                          <th>Late risk</th>
+                          <th>Delay</th>
+                          <th>Confidence</th>
+                          <th>Ask AI</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {highRiskInvoices.map(
+                          (invoice) => (
+                            <tr key={invoice.invoice_id}>
+                              <td>
+                                <strong>
+                                  {invoice.invoice_id}
+                                </strong>
+                              </td>
+
+                              <td>
+                                {invoice.customer_id}
+                              </td>
+
+                              <td>
+                                {formatMoney(
+                                  invoice.outstanding_amount,
+                                )}
+                              </td>
+
+                              <td>
+                                {invoice.due_date}
+                              </td>
+
+                              <td>
+                                <span
+                                  className={`invoice-risk-pill ${
+                                    invoice.late_probability >= 85
+                                      ? 'critical'
+                                      : 'high'
+                                  }`}
+                                >
+                                  {invoice.late_probability.toFixed(
+                                    2,
+                                  )}
+                                  %
+                                </span>
+                              </td>
+
+                              <td>
+                                {invoice.expected_delay_days}d
+                              </td>
+
+                              <td>
+                                {invoice.confidence.toFixed(
+                                  2,
+                                )}
+                                %
+                              </td>
+
+                              <td>
+                                <button
+                                  type="button"
+                                  className="table-ai-action"
+                                  onClick={() =>
+                                    openAskFlowGuard(
+                                      `Tell me about ${invoice.invoice_id}`,
+                                    )
+                                  }
+                                >
+                                  <Sparkles size={14} />
+                                  Ask
+                                </button>
+                              </td>
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="invoice-table-footer">
+                    <span>
+                      Showing up to 10 highest-risk
+                      open invoices.
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAskFlowGuardOpen(true)
+                      }
+                    >
+                      <Sparkles size={15} />
+                      Ask FlowGuard
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+
+            <div className="customer-risk-block">
+              <div className="customer-risk-header">
+                <div>
+                  <span className="invoice-risk-eyebrow">
+                    Customer cashflow intelligence
+                  </span>
+
+                  <h4>Customers affecting liquidity</h4>
+
+                  <p>
+                    Ranked by actual cashflow impact,
+                    not simply invoice value.
+                  </p>
+                </div>
+
+                <div className="customer-limit-selector">
+                  {[5, 10, 15].map((limit) => (
+                    <button
+                      key={limit}
+                      type="button"
+                      className={
+                        customerRiskLimit === limit
+                          ? 'active'
+                          : ''
+                      }
+                      onClick={() =>
+                        setCustomerRiskLimit(
+                          limit as 5 | 10 | 15,
+                        )
+                      }
+                    >
+                      Top {limit}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {customerRiskLoading ? (
+                <div className="invoice-table-state">
+                  <RefreshCw
+                    className="spin"
+                    size={17}
+                  />
+                  Calculating customer cashflow impact...
+                </div>
+              ) : customerRiskError ? (
+                <div className="invoice-table-state error">
+                  <AlertTriangle size={17} />
+                  {customerRiskError}
+                </div>
+              ) : customerRisk ? (
+                <>
+                  {customerRisk.combined_impact && (
+                    <div className="combined-impact-grid">
+                      <div>
+                        <span>Combined outstanding</span>
+                        <strong>
+                          {formatMoney(
+                            customerRisk.combined_impact
+                              .combined_outstanding,
+                          )}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Delayed exposure</span>
+                        <strong>
+                          {formatMoney(
+                            customerRisk.combined_impact
+                              .combined_delayed_exposure,
+                          )}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Maximum cash gap</span>
+                        <strong>
+                          {formatMoney(
+                            customerRisk.combined_impact
+                              .maximum_temporary_cash_gap,
+                          )}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Reduced liquidity</span>
+                        <strong>
+                          {
+                            customerRisk.combined_impact
+                              .days_with_reduced_liquidity
+                          }
+                          d
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Extra shortfall</span>
+                        <strong>
+                          {formatMoney(
+                            customerRisk.combined_impact
+                              .incremental_shortfall,
+                          )}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Combined severity</span>
+                        <strong
+                          className={`customer-severity ${
+                            customerRisk.combined_impact
+                              .severity.toLowerCase()
+                          }`}
+                        >
+                          {
+                            customerRisk.combined_impact
+                              .severity
+                          }
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="customer-ranking-meta">
+                    <span>
+                      Evaluated{' '}
+                      {customerRisk.customer_count_evaluated}{' '}
+                      customers
+                    </span>
+
+                    <span>
+                      Ranking:{' '}
+                      {customerRisk.ranking_basis
+                        .replaceAll('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div className="invoice-table-scroll">
+                    <table className="customer-risk-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Customer</th>
+                          <th>Outstanding</th>
+                          <th>Delayed exposure</th>
+                          <th>Max cash gap</th>
+                          <th>Liquidity</th>
+                          <th>Severity</th>
+                          <th>Ask AI</th>
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {customerRisk.customers.map(
+                          (customer) => (
+                            <tr key={customer.customer_id}>
+                              <td>
+                                <strong>
+                                  #{customer.rank}
+                                </strong>
+                              </td>
+
+                              <td>
+                                <div className="customer-cell">
+                                  <strong>
+                                    {customer.customer_name ||
+                                      customer.customer_id}
+                                  </strong>
+                                  <span>
+                                    {customer.customer_id}
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td>
+                                {formatMoney(
+                                  customer.total_outstanding,
+                                )}
+                              </td>
+
+                              <td>
+                                {formatMoney(
+                                  customer
+                                    .predicted_delayed_exposure,
+                                )}
+                              </td>
+
+                              <td>
+                                {formatMoney(
+                                  customer
+                                    .maximum_temporary_cash_gap,
+                                )}
+                              </td>
+
+                              <td>
+                                {
+                                  customer
+                                    .days_with_reduced_liquidity
+                                }
+                                d
+                              </td>
+
+                              <td>
+                                <span
+                                  className={`customer-severity ${
+                                    customer.severity.toLowerCase()
+                                  }`}
+                                >
+                                  {customer.severity}
+                                </span>
+                              </td>
+
+                              <td>
+                                <button
+                                  type="button"
+                                  className="table-ai-action"
+                                  onClick={() =>
+                                    openAskFlowGuard(
+                                      `How does ${customer.customer_id} affect my cashflow?`,
+                                    )
+                                  }
+                                >
+                                  <Sparkles size={14} />
+                                  Ask
+                                </button>
+                              </td>
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="invoice-table-footer">
+                    <span>
+                      Combined impact is simulated on one
+                      cashflow timeline — individual gaps are
+                      not simply added.
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAskFlowGuardOpen(true)
+                      }
+                    >
+                      <Sparkles size={15} />
+                      Ask about customers
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+
             <div className="model-note">
               <Sparkles size={17} />
 
@@ -991,9 +1570,10 @@ function App() {
       onClose={() =>
         setUploadModalOpen(false)
       }
-      onAnalysis={(analysis) => {
+      onAnalysis={(analysis, manifest) => {
         setOverview(analysis)
         setDatasetLabel('Uploaded dataset')
+        setCurrentImportId(manifest.import_id)
         setLastUpdated(new Date())
         setError(null)
 
@@ -1002,6 +1582,16 @@ function App() {
           behavior: 'smooth',
         })
       }}
+    />
+
+    <AskFlowGuardPanel
+      open={askFlowGuardOpen}
+      onClose={() => setAskFlowGuardOpen(false)}
+      asOfDate={overview.as_of_date}
+      openingCashBalance={cashflow.opening_cash_balance}
+      horizonDays={90}
+      importId={currentImportId}
+      initialQuestion={askFlowGuardPrompt}
     />
     </div>
   )

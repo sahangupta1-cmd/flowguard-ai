@@ -24,6 +24,7 @@ class DelayPrediction:
     prediction_basis: str
 
     amount_at_risk: Decimal
+    outstanding_amount: Decimal = Decimal("0.00")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -50,6 +51,10 @@ class DelayPrediction:
             "prediction_basis": self.prediction_basis,
             "amount_at_risk": format(
                 self.amount_at_risk,
+                ".2f",
+            ),
+            "outstanding_amount": format(
+                self.outstanding_amount,
                 ".2f",
             ),
         }

@@ -293,8 +293,8 @@ _PERCENT_RE = re.compile(
 
 _GENERIC_NUMBER_RE = re.compile(
     r"(?<![A-Za-z0-9_.-])"
-    r"(?P<number>\d+(?:\.\d+)?)"
-    r"(?![A-Za-z0-9_.-])"
+    r"(?P<number>\d[\d,]*(?:\.\d+)?)"
+    r"(?![A-Za-z0-9_-]|,\d|\.\d)"
 )
 
 

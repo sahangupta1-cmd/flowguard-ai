@@ -309,10 +309,12 @@ class PaymentDelayResponse(StrictAPIModel):
     prediction_basis: str
 
     amount_at_risk: Decimal
+    outstanding_amount: Decimal
 
     @field_serializer(
         "invoice_amount",
         "amount_at_risk",
+        "outstanding_amount",
     )
     def serialize_money(
         self,

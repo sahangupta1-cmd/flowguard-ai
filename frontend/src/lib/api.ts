@@ -71,6 +71,51 @@ export async function getCFOOverview(): Promise<CFOOverview> {
   return response.json()
 }
 
+export type PaymentDelayPrediction = {
+  invoice_id: string
+  customer_id: string
+  invoice_amount: string
+  outstanding_amount: string
+  due_date: string
+  expected_delay_days: number
+  expected_payment_date: string
+  late_probability: number
+  confidence: number
+  history_count: number
+  prediction_basis: string
+  amount_at_risk: string
+}
+
+export type PaymentDelayListResponse = {
+  as_of_date: string
+  count: number
+  predictions: PaymentDelayPrediction[]
+}
+
+export async function getPaymentDelays(options: {
+  importId?: string | null
+  asOfDate: string
+}): Promise<PaymentDelayListResponse> {
+  const url = options.importId
+    ? `/api/v1/imports/${encodeURIComponent(
+        options.importId
+      )}/payment-delays?as_of_date=${encodeURIComponent(
+        options.asOfDate
+      )}`
+    : '/api/v1/payment-delays'
+
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    throw new Error(
+      `Payment-delay API error: ${response.status}`
+    )
+  }
+
+  return response.json()
+}
+
+
 export type ImportDatasetResponse = {
   dataset_type: string
   normalized_filename: string
@@ -196,6 +241,173 @@ export async function analyzeImport(
       body: JSON.stringify(request),
     },
   )
+
+  if (!response.ok) {
+    throw new Error(
+      await apiErrorMessage(response),
+    )
+  }
+
+  return response.json()
+}
+
+// -----------------------------------------------------------------------------
+// Customer risk / cashflow drill-down
+// -----------------------------------------------------------------------------
+
+export type CustomerRiskItem = {
+  rank: number
+  customer_id: string
+  customer_name: string
+  industry?: string
+  payment_terms_days?: string
+
+  open_invoices: number
+  high_risk_invoices: number
+
+  total_outstanding: string
+  predicted_delayed_exposure: string
+
+  weighted_late_probability_pct: number
+  weighted_expected_delay_days: number
+  average_prediction_confidence_pct: number
+
+  maximum_temporary_cash_gap: string
+  maximum_gap_date: string | null
+  days_with_reduced_liquidity: number
+  incremental_shortfall: string
+
+  severity: string
+  risk_level?: string
+
+  invoice_ids: string[]
+  delayed_invoice_ids: string[]
+}
+
+export type CombinedCustomerImpact = {
+  customer_ids: string[]
+  customer_count: number
+
+  combined_outstanding: string
+  combined_delayed_exposure: string
+
+  weighted_expected_delay_days: number
+
+  maximum_temporary_cash_gap: string
+  maximum_gap_date: string | null
+  days_with_reduced_liquidity: number
+
+  baseline_minimum_balance: string
+  combined_delay_minimum_balance: string
+  minimum_balance_deterioration: string
+
+  baseline_shortfall: string
+  combined_delay_shortfall: string
+  incremental_shortfall: string
+
+  severity: string
+  horizon_days: number
+}
+
+export type CustomerRiskResponse = {
+  source_type: string
+  import_id: string | null
+  as_of_date: string
+
+  ranking_basis: string
+  customer_count_evaluated: number
+  customer_count_returned: number
+
+  customers: CustomerRiskItem[]
+  combined_impact: CombinedCustomerImpact | null
+}
+
+export async function getCustomerRiskDrilldown(options: {
+  importId?: string | null
+  asOfDate: string
+  openingCashBalance: string
+  horizonDays?: number
+  limit?: number
+}): Promise<CustomerRiskResponse> {
+  const params = new URLSearchParams({
+    as_of_date: options.asOfDate,
+    opening_cash_balance: options.openingCashBalance,
+    horizon_days: String(options.horizonDays ?? 90),
+    limit: String(options.limit ?? 5),
+  })
+
+  if (options.importId) {
+    params.set('import_id', options.importId)
+  }
+
+  const response = await fetch(
+    `/api/v1/drilldown/customer-risk?${params.toString()}`,
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      await apiErrorMessage(response),
+    )
+  }
+
+  return response.json()
+}
+
+
+// -----------------------------------------------------------------------------
+// Ask FlowGuard AI
+// -----------------------------------------------------------------------------
+
+export type AskFlowGuardRequest = {
+  question: string
+  as_of_date: string
+  opening_cash_balance: string
+  horizon_days: number
+  import_id?: string | null
+}
+
+export type AskFlowGuardEvidence = {
+  evidence_id: string
+  value: string | number | boolean | null
+  unit?: string | null
+  label?: string | null
+}
+
+export type AskFlowGuardAction = {
+  action: string
+  rationale?: string
+  priority?: string
+}
+
+export type AskFlowGuardSafety = {
+  grounded: boolean
+  numeric_claims_validated: boolean
+  evidence_references_validated: boolean
+  unsupported_claims_detected: number
+  benchmark_data_accessed: boolean
+  human_review_preserved: boolean
+}
+
+export type AskFlowGuardResponse = {
+  answer: string
+  risk_level: string
+  confidence: string
+  safety_state: string
+  evidence: AskFlowGuardEvidence[]
+  recommended_actions: AskFlowGuardAction[]
+  safety: AskFlowGuardSafety
+}
+
+export async function askFlowGuard(
+  request: AskFlowGuardRequest,
+): Promise<AskFlowGuardResponse> {
+  const response = await fetch('/api/v1/ai/ask', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(request),
+  })
 
   if (!response.ok) {
     throw new Error(

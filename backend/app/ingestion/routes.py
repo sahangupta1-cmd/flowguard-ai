@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,8 +14,14 @@ from fastapi import (
     status,
 )
 
+from backend.app.api.schemas import (
+    PaymentDelayListResponse,
+    PaymentDelayResponse,
+)
+
 from backend.app.ingestion.contracts import CONTRACTS
 from backend.app.intelligence.service import CFOIntelligenceService
+from backend.app.prediction.delay_predictor import DelayPredictor
 from backend.app.ingestion.schemas import (
     ImportAnalysisRequest,
     ImportAnalysisResponse,
@@ -354,5 +361,73 @@ def analyze_operational_import(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=(
                 "Operational intelligence analysis failed."
+            ),
+        ) from exc
+
+
+@router.get(
+    "/api/v1/imports/{import_id}/payment-delays",
+    response_model=PaymentDelayListResponse,
+    tags=["imports", "prediction"],
+)
+def get_import_payment_delays(
+    import_id: str,
+    as_of_date: date,
+) -> PaymentDelayListResponse:
+    """
+    Predict payment timing for open invoices from one
+    isolated uploaded operational dataset.
+
+    The demo dataset is never used for this endpoint.
+    """
+
+    # Reuse FlowGuard's existing safe import validation.
+    get_operational_import(import_id)
+
+    normalized_path = (
+        DEFAULT_IMPORT_ROOT
+        / import_id
+        / "normalized"
+    )
+
+    if not normalized_path.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Imported operational dataset is unavailable "
+                "for payment-delay analysis."
+            ),
+        )
+
+    try:
+        predictor = DelayPredictor(
+            raw_dir=normalized_path,
+            as_of_date=as_of_date,
+        )
+
+        predictions = predictor.predict_open_invoices()
+
+        api_predictions = [
+            PaymentDelayResponse(
+                **prediction.to_dict()
+            )
+            for prediction in predictions
+        ]
+
+        return PaymentDelayListResponse(
+            as_of_date=predictor.as_of_date.isoformat(),
+            count=len(api_predictions),
+            predictions=api_predictions,
+        )
+
+    except (
+        FileNotFoundError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Imported payment-delay analysis failed."
             ),
         ) from exc

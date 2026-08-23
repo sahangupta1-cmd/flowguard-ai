@@ -14,6 +14,8 @@ from backend.app.ai.provider import (
     AIProviderRequest,
 )
 from backend.app.ai.routing import select_relevant_evidence
+from backend.app.ai.dataset import resolve_ai_dataset
+from backend.app.ai.question_evidence import build_question_evidence
 
 
 class AskFlowGuardService:
@@ -71,10 +73,34 @@ class AskFlowGuardService:
         # ------------------------------------------------------------
         # 3. Expose only the evidence relevant to this question.
         # ------------------------------------------------------------
-        _, selected_evidence = select_relevant_evidence(
+        resolved_dataset = resolve_ai_dataset(request)
+
+        dynamic_evidence = build_question_evidence(
             question=request.question,
-            evidence_index=context.evidence_index,
+            raw_dir=resolved_dataset.raw_dir,
+            as_of_date=request.as_of_date,
+            opening_cash_balance=request.opening_cash_balance,
+            horizon_days=request.horizon_days,
         )
+
+        validation_evidence_index = dict(
+            context.evidence_index
+        )
+
+        for item in dynamic_evidence:
+            validation_evidence_index[
+                item.evidence_id
+            ] = item
+
+        if dynamic_evidence:
+            selected_evidence = list(
+                dynamic_evidence[:18]
+            )
+        else:
+            _, selected_evidence = select_relevant_evidence(
+                question=request.question,
+                evidence_index=validation_evidence_index,
+            )
 
         if not selected_evidence:
             raise RuntimeError(
@@ -110,7 +136,7 @@ class AskFlowGuardService:
         # ------------------------------------------------------------
         validation = validate_llm_draft(
             draft=draft,
-            evidence_index=context.evidence_index,
+            evidence_index=validation_evidence_index,
         )
 
         if not validation.valid:

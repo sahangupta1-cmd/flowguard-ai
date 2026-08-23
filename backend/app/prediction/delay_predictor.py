@@ -873,6 +873,9 @@ class DelayPredictor:
             amount_at_risk=(
                 amount_at_risk
             ),
+        outstanding_amount=(
+            outstanding_amount
+        ),
         )
 
     # ------------------------------------------------------------------
